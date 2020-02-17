@@ -70,7 +70,11 @@ namespace Minesweeper
             NumOfFlags = NumOfBombs;
         }
 
-        internal void Init(Point startPoint) // maybe return bool or some object representing something
+        /**
+         * To be called when the player selects the first spot to begin the game.
+         * The call to this function should be followed by a call to Dig(), passing in the same Point. 
+         */
+        internal void Init(Point startPoint)
         {
             grid[startPoint.X, startPoint.Y] = new Cell(Cell.CellValue.NONE, startPoint);
 
@@ -84,6 +88,64 @@ namespace Minesweeper
             MarkCells();
         }
 
+        private Cell[] PlantBombs(Point startPoint)
+        {
+            var bombs = new Cell[NumOfBombs];
+
+            for (int i = 0; i < NumOfBombs; i++)
+            {
+                int X;
+                int Y;
+
+                do
+                {
+                    X = random.Next(0, Rows);
+                    Y = random.Next(0, Cols);
+
+                } while (IsBombTouchingStartPoint(startPoint, X, Y) || IsBombSameAsOtherBomb(X, Y, i, bombs));
+
+                bombs[i] = new Cell(Cell.CellValue.BOMB, new Point(X, Y));
+
+            }
+
+            return bombs;
+        }
+
+        /**
+         * returns true if the current bomb location is already occupied by another bomb.
+         * Can't have two bombs in the same place!
+         */
+        private bool IsBombSameAsOtherBomb(int x, int y, int i, Cell[] bombs)
+        {
+            for (int j = 0; j < i; j++)
+            {
+                if (bombs[j].Point.X == x && bombs[j].Point.Y == y)
+                    return true;
+            }
+            return false;
+        }
+
+        /**
+         * returns true if the bomb is touching the first spot that the player dug into
+         * As I understood it, the rule is that the first spot dug must be an empty space.
+         * If there is a bomb touching that spot, the spot will be assigned a number instead.
+         */
+        private bool IsBombTouchingStartPoint(Point p, int x, int y)
+        {
+            for (int i = x - 1; i < x + 2; i++)
+            {
+                for (int j = y - 1; j < y + 2; j++)
+                {
+                    if (i < 0 || j < 0 || i > Rows || j > Cols)
+                        continue;
+
+                    if (p.X == i && p.Y == j)
+                        return true;
+                }
+            }
+            return false;
+        }
+
         private void MarkCells()
         {
             for (int i = 0; i < Rows; i++)
@@ -95,7 +157,10 @@ namespace Minesweeper
             }
         }
 
-        private void MarkCell(Point p) //unoptimized nested for-loop; Just for prototyping. (yes, this results in a ridiculously slow algorith)
+        /**
+         * Gives the cell at Point p a value corrosponding to the number of bombs touching it. 
+         */
+        private void MarkCell(Point p)
         {
             var bombsTouching = 0;
 
@@ -126,6 +191,14 @@ namespace Minesweeper
             grid[p.X, p.Y] = new Cell((Cell.CellValue) bombsTouching, p);
         }
 
+        /**
+         * The action of the player making a move.
+         * Returns a list of Cells that were uncovered as a result of this move.
+         * Instances when the list contains more than one element:
+         *      A) If the dug Cell's value is NONE
+         *      B) If the dug Cell's value is BOMB
+         * If the dug Cell's value is BOMB, this function will return a list of the locations of all the Bombs
+         */
         internal List<Cell> Dig(Point cell)
         {
             Cell cellAsCell = grid[cell.X, cell.Y];
@@ -148,6 +221,41 @@ namespace Minesweeper
                 return res;
             }
         }
+        
+        /**
+         * A recursive function to Dig all neighboring undug and unflagged Cells.
+         * Used to expand an area of NONE cells.
+         */
+        private List<Cell> RecursiveDig(List<Cell> cells, Cell cell)
+        {
+            if (cell.IsDug || cell.IsFlagged)
+                return cells;
+            if (cell.Value != Cell.CellValue.NONE)
+            {
+                cell.IsDug = true;
+                cells.Add(cell);
+                return cells;
+            }
+            else
+            {
+                cell.IsDug = true;
+                cells.Add(cell);
+
+                for (int x = cell.Point.X - 1; x < cell.Point.X + 2; x++)
+                {
+                    if (x >= Rows || x < 0)
+                        continue;
+                    for (int y = cell.Point.Y - 1; y < cell.Point.Y + 2; y++)
+                    {
+                        if (y >= Cols || y < 0)
+                            continue;
+
+                        RecursiveDig(cells, grid[x, y]);
+                    }
+                }
+                return cells;
+            }
+        }
 
         internal void ToggleFlag(Point cell)
         {
@@ -163,86 +271,9 @@ namespace Minesweeper
             }
         }
 
-        private List<Cell> RecursiveDig(List<Cell> cells ,Cell cell)
-        {
-            if (cell.IsDug || cell.IsFlagged) 
-                return cells;
-            if (cell.Value != Cell.CellValue.NONE)
-            {
-                cell.IsDug = true;
-                cells.Add(cell);
-                return cells;
-            }
-            else
-            {
-                cell.IsDug = true;
-                cells.Add(cell);
-
-                for (int x = cell.Point.X-1; x < cell.Point.X+2; x++)
-                {
-                    if (x >= Rows || x < 0)
-                        continue;
-                    for (int y = cell.Point.Y-1; y < cell.Point.Y+2; y++)
-                    {
-                        if (y >= Cols || y < 0)
-                            continue;
-
-                        RecursiveDig(cells, grid[x,y]);
-                    }
-                }
-                return cells;
-            }
-        }
-
-        private Cell[] PlantBombs(Point startPoint)
-        {
-            var bombs = new Cell[NumOfBombs];
-
-            for (int i = 0; i < NumOfBombs; i++)
-            {
-                int X;
-                int Y;
-
-                do
-                {
-                    X = random.Next(0, Rows);
-                    Y = random.Next(0, Cols);
-
-                } while (IsBombTouchingStartPoint(startPoint, X, Y) || IsBombSameAsOtherBomb(X, Y, i, bombs));
-
-                bombs[i] = new Cell(Cell.CellValue.BOMB, new Point(X,Y));
-                
-            }
-
-            return bombs;                
-        }
-
-        private bool IsBombSameAsOtherBomb(int x, int y, int i, Cell[] bombs)
-        {
-            for (int j = 0; j < i; j++)
-            {
-                if (bombs[j].Point.X == x && bombs[j].Point.Y == y)
-                    return true;
-            }
-            return false;
-        }
-
-        private bool IsBombTouchingStartPoint(Point p, int x, int y)
-        {
-            for (int i = x-1; i < x+2; i++)
-            {
-                for (int j = y-1; j < y+2; j++)
-                {
-                    if (i < 0 || j < 0 || i > Rows || j > Cols)
-                        continue;
-
-                    if (p.X == i && p.Y == j)
-                        return true;
-                }
-            }
-            return false;
-        }
-
+        /**
+         * The winning condition is that all non-bomb spaces were dug.
+         */
         internal bool IsWon()
         {
             for (int i = 0; i < Rows; i++)
